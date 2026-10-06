@@ -1,0 +1,20 @@
+{
+  "name": "beijing-culture-travel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "燕京拾遗 · 北京文化知识科普旅行：纯前端静态应用，运行时零依赖；下面这个依赖只服务于 tools/runtime-test.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "node tools/smoke.js && node tools/logic-test.js && node tools/transit-test.js && node tools/clue-test.js && node tools/imgfallback-test.js && node tools/runtime-test.js",
+    "test:smoke": "node tools/smoke.js",
+    "test:logic": "node tools/logic-test.js",
+    "test:transit": "node tools/transit-test.js",
+    "test:clue": "node tools/clue-test.js",
+    "test:imgfallback": "node tools/imgfallback-test.js",
+    "test:runtime": "node tools/runtime-test.js",
+    "serve": "python -m http.server 8848"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

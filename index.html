@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>燕京拾遗 · 北京文化知识科普旅行</title>
+<meta name="description" content="燕京拾遗——为北京主要景点建立文化知识卡片，规划路线时逐点查看历史、人物与趣事，按故事线索探索景点背后的典故。">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/views.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23B3302C'/><text x='50' y='72' font-size='58' text-anchor='middle' fill='%23F7F3EA' font-family='serif'>京</text></svg>">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header" id="siteHeader">
+    <div class="wrap header-inner">
+      <a class="brand" href="#/" data-link>
+        <span class="brand-seal" aria-hidden="true">京</span>
+        <span class="brand-text"><b>燕京拾遗</b><i>Beijing Culture Notes</i></span>
+      </a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="#/" data-link data-nav="home">景点总览</a>
+        <a href="#/plan" data-link data-nav="plan">路线规划</a>
+        <a href="#/storyline" data-link data-nav="storyline">故事线索</a>
+        <a href="#/collection" data-link data-nav="collection">我的收藏</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn-ghost" id="progressBtn" type="button" aria-label="查看探索进度">
+          <span class="dot"></span><span id="progressText">探索 0</span>
+        </button>
+        <button class="burger" id="burger" type="button" aria-label="展开导航"><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div>
+        <h4>燕京拾遗</h4>
+        <p>为 30 处北京主要景点建立文化知识卡片：历史沿革、近代趣闻、相关名人、馆藏文物与遗迹，并配一组可打卡的故事线索。</p>
+      </div>
+      <p class="disclaimer">内容以公开的史料与博物院馆公开介绍为据，涉及争议处标注「相传」「据载」。出行前请以官方开放时间与票务信息为准。</p>
+    </div>
+  </footer>
+
+  <!-- 画廊弹层 -->
+  <div class="modal" id="galleryModal" role="dialog" aria-modal="true" aria-labelledby="galleryModalTitle" hidden>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel gallery-panel">
+      <header class="modal-head">
+        <div>
+          <h3 id="galleryModalTitle">图片集合</h3>
+          <p id="galleryModalSub" class="muted"></p>
+        </div>
+        <button class="icon-btn" type="button" data-close-modal aria-label="关闭">✕</button>
+      </header>
+      <div class="modal-body" id="galleryModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 故事阅读弹层 -->
+  <div class="modal" id="storyModal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel story-panel">
+      <button class="icon-btn story-close" type="button" data-close-modal aria-label="关闭">✕</button>
+      <article class="story-body" id="storyModalBody"></article>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/transit.js"></script>
+  <script src="assets/js/svgart.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/views/home.js"></script>
+  <script src="assets/js/views/spot.js"></script>
+  <script src="assets/js/views/plan.js"></script>
+  <script src="assets/js/views/storyline.js"></script>
+  <script src="assets/js/views/collection.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

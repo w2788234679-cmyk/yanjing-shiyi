@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }} · 全量测试
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 关键：本仓库的 package-lock.json 中 resolved 指向 registry.npmmirror.com（开发机镜像）。
+      # 不显式指定 registry 时，GitHub  Runner 会尝试访问该国内镜像而卡住/失败。
+      # 这里通过 registry-url + --registry 双重锁定到官方源，确保 npm ci 可正常解析依赖。
+      - name: 配置 Node.js（官方 npm 源）
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 安装仅用于测试的依赖
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: 运行 6 套测试（必须全绿）
+        run: npm test

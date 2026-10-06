@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>燕京拾遗 · 浏览器自检</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/views.css">
+</head>
+<body>
+<div id="selftest-result">RUNNING</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/svgart.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/views/home.js"></script>
+<script src="assets/js/views/spot.js"></script>
+<script src="assets/js/views/plan.js"></script>
+<script src="assets/js/views/storyline.js"></script>
+<script src="assets/js/views/collection.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+/* 浏览器内自检：真实 DOM 环境下遍历全部路由与交互，结果写入 #selftest-result */
+(function () {
+  var log = [], errors = [];
+  window.addEventListener('error', function (e) { errors.push('window.error: ' + e.message); });
+  var _err = console.error;
+  console.error = function () { errors.push('console.error: ' + [].join.call(arguments, ' ')); _err.apply(console, arguments); };
+
+  function rec(ok, name, extra) { log.push((ok ? 'PASS\t' : 'FAIL\t') + name + (extra ? '\t' + extra : '')); }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms || 70); }); }
+  function main() { return document.getElementById('main'); }
+
+  async function go(hash) {
+    window.location.hash = hash;
+    await wait(60);
+  }
+
+  function click(el) { if (el) el.click(); return !!el; }
+
+  async function run() {
+    var BJT = window.BJT;
+    if (!BJT || !BJT.data || !BJT.data.ready()) { rec(false, '数据就绪'); finish(); return; }
+    rec(true, '数据就绪（' + BJT.data.all().length + ' 处景点）');
+
+    /* 1. 主要路由 */
+    var routes = [
+      ['#/', '首页', '.spot-grid'],
+      ['#/plan', '路线规划', '.plan-layout'],
+      ['#/storyline', '故事线索', '.storyline-hero'],
+      ['#/storyline/axis', '故事线索·中轴线', '.thread'],
+      ['#/collection', '我的收藏', '.profile-grid']
+    ];
+    for (var i = 0; i < routes.length; i++) {
+      await go(routes[i][0]);
+      rec(main().innerHTML.trim().length > 100 && main().querySelector(routes[i][2]),
+        '路由 ' + routes[i][1], main().innerHTML.length + ' 字符');
+    }
+
+    /* 2. 全部景点详情页 */
+    var spots = BJT.data.all(), bad = [];
+    for (var k = 0; k < spots.length; k++) {
+      await go('#/spot/' + spots[k].id);
+      var okd = main().querySelector('.spot-banner') && main().innerHTML.indexOf(spots[k].name) !== -1;
+      if (!okd) bad.push(spots[k].id);
+    }
+    rec(bad.length === 0, '30 个景点详情页', bad.length ? '异常：' + bad.join(',') : '全部正常');
+
+    /* 3. 详情页分区 */
+    await go('#/spot/gugong');
+    var tabs = ['overview', 'history', 'facts', 'figures', 'artifacts', 'clues', 'gallery'];
+    var tabBad = [];
+    for (var t = 0; t < tabs.length; t++) {
+      await go('#/spot/gugong/' + tabs[t]);
+      var b = document.getElementById('spotTabBody');
+      if (!b || b.innerHTML.trim().length < 80) tabBad.push(tabs[t]);
+    }
+    rec(!tabBad.length, '详情页 7 个分区', tabBad.length ? '空：' + tabBad.join(',') : '全部有内容');
+
+    /* 4. 筛选 */
+    await go('#/');
+    var chip = document.querySelector('#catChips .chip[data-cat="长城关隘"]');
+    if (chip) {
+      chip.click(); await wait(50);
+      var n = document.querySelectorAll('.spot-card').length;
+      rec(n === 5, '分类筛选「长城关隘」', n + ' 张卡片');
+      chip.click(); await wait(50);
+    } else rec(false, '分类筛选按钮存在');
+
+    /* 5. 搜索 */
+    var inp = document.getElementById('spotSearch');
+    if (inp) {
+      inp.value = '长城'; inp.dispatchEvent(new Event('input')); await wait(240);
+      var s = document.querySelectorAll('.spot-card').length;
+      rec(s > 0, '搜索关键词「长城」', s + ' 条结果');
+      inp.value = 'zzzz不存在zzzz'; inp.dispatchEvent(new Event('input')); await wait(240);
+      rec(!!document.querySelector('.empty-state'), '无结果时显示空状态');
+      inp.value = ''; inp.dispatchEvent(new Event('input')); await wait(240);
+    } else rec(false, '搜索框存在');
+
+    /* 6. 地图视图 */
+    await go('#/');
+    click(document.querySelector('.view-toggle button[data-view="map"]'));
+    await wait(60);
+    var pins = document.querySelectorAll('#listWrap .map-pin').length;
+    rec(!!document.querySelector('.map-view svg') && pins > 0, '地图视图', pins + ' 个坐标点');
+    click(document.querySelector('.view-toggle button[data-view="grid"]'));
+    await wait(50);
+
+    /* 7. 收藏 */
+    await go('#/spot/gugong');
+    var fav = document.querySelector('[data-fav]');
+    if (fav) {
+      fav.click(); await wait(40);
+      rec(BJT.store.isFavorite('gugong'), '收藏按钮');
+      fav.click(); await wait(40);
+    } else rec(false, '详情页收藏按钮');
+
+    /* 8. 故事线索打卡 */
+    await go('#/spot/gugong/clues');
+    var clueBtn = document.querySelector('[data-toggle-clue]');
+    if (clueBtn) {
+      clueBtn.click(); await wait(80);
+      rec(BJT.store.isClueDone('gugong', 0), '故事线索打卡');
+      document.getElementById('storyModal') && window.BJT.ui.closeModal(document.getElementById('storyModal'));
+      document.body.classList.remove('no-scroll');
+    } else rec(false, '故事线索按钮');
+
+    /* 9. 画廊 → 图片集合 → 典故 */
+    await go('#/spot/gugong/gallery');
+    var gb = document.querySelector('[data-open-group]');
+    if (gb) {
+      gb.click(); await wait(60);
+      var modal = document.getElementById('galleryModal');
+      var cells = modal.querySelectorAll('.gallery-cell').length;
+      rec(!modal.hidden && cells > 0, '弹出图片集合', cells + ' 幅图');
+      var withStory = null, all = modal.querySelectorAll('.gallery-cell');
+      for (var c = 0; c < all.length; c++) if (all[c].querySelector('.story-badge')) { withStory = all[c]; break; }
+      if (withStory) {
+        withStory.click(); await wait(60);
+        rec(!!document.querySelector('.gallery-lightbox'), '点开图片进入大图');
+        var cap = document.querySelector('.lb-cap');
+        if (cap) { cap.click(); await wait(80); }
+        var body = document.getElementById('storyModalBody');
+        rec(body.textContent.indexOf('典故') !== -1 && body.innerHTML.length > 200, '图片 → 典故阅读');
+        var closeBtn = document.querySelector('#storyModal .story-close');
+        if (closeBtn) { closeBtn.click(); await wait(40); }
+      } else rec(false, '画廊含典故图片');
+      var x = document.querySelector('#galleryModal [data-close-modal]');
+      if (x) x.click();
+      await wait(40);
+    } else rec(false, '画廊分组按钮');
+
+    /* 10. 路线规划 */
+    await go('#/plan');
+    var ap = document.getElementById('autoPick');
+    if (ap) {
+      ap.click(); await wait(80);
+      var steps = document.querySelectorAll('.route-step').length;
+      rec(steps === 5, '生成路线行程', steps + ' 站');
+      var ex = document.querySelector('[data-expand="0"]');
+      if (ex) {
+        ex.click(); await wait(60);
+        var box = document.getElementById('expand-0');
+        rec(box && box.innerHTML.length > 80, '逐点查看文化亮点');
+      } else rec(false, '逐点查看按钮');
+      var storyBtn = document.querySelector('#routeOut [data-story]');
+      rec(!!storyBtn, '路线内典故按钮');
+    } else rec(false, '帮我选 5 处经典');
+
+    /* 11. 故事线索页节点 */
+    await go('#/storyline/axis');
+    rec(document.querySelectorAll('.thread-node').length === 5, '故事线节点渲染',
+      document.querySelectorAll('.thread-node').length + ' 个');
+
+    /* 12. 收藏页 */
+    await go('#/collection');
+    rec(!!document.querySelector('.badges, .profile-grid'), '收藏页徽章区');
+
+    /* 13. 运行时错误 */
+    rec(errors.length === 0, '无运行时错误', errors.length ? errors.slice(0, 3).join(' | ') : '');
+
+    finish();
+  }
+
+  function finish() {
+    var pass = log.filter(function (l) { return l.indexOf('PASS') === 0; }).length;
+    var fail = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+    var txt = 'SELFTEST DONE\nPASS: ' + pass + '  FAIL: ' + fail + '\n' + log.join('\n') +
+      (errors.length ? '\nERRORS:\n' + errors.slice(0, 10).join('\n') : '');
+    var el = document.getElementById('selftest-result');
+    if (el) { el.textContent = txt; el.setAttribute('data-done', '1'); }
+    document.title = 'SELFTEST-DONE ' + pass + '/' + (pass + fail);
+  }
+
+  window.addEventListener('load', function () { setTimeout(run, 300); });
+})();
+</script>
+</body>
+</html>

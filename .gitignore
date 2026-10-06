@@ -1,0 +1,24 @@
+# 依赖（仅测试用 jsdom；应用本身运行时零依赖，删掉这个目录双击 index.html 照常运行）
+node_modules/
+
+# 构建/调试中间产物
+tools/_tmp/
+tools/_obsolete/
+
+# 测试输出（每次跑测试都会重写，不入库）
+tools/*-report.txt
+
+# 日志
+*.log
+
+# 误落在仓库根目录的本机路径清单
+_tree.txt
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 构建过程 scratch
+data/_ls.txt
+data/errors.txt
