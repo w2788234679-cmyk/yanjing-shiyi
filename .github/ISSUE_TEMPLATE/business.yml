@@ -1,0 +1,60 @@
+name: 内容授权 / 商业合作咨询
+description: 研学机构、文旅公司、内容平台——想使用本项目的景点内容
+title: "[合作] "
+labels: ["business"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 先说明授权边界
+
+        本仓库的**代码**采用 MIT，可自由商用；
+        **景点内容**（历史沿革 / 趣闻 / 名人 / 文物文本、113 条现场线索、83 篇典故、
+        出站步行导向文案、「线索打卡解锁」机制设计）采用 **CC BY-NC-ND 4.0**，
+        **禁止商业使用**。
+
+        如需商业使用，请通过下方方式联系获取**单独的书面许可**。
+        详见 [CONTENT-LICENSE](../blob/main/CONTENT-LICENSE)。
+
+  - type: dropdown
+    id: who
+    attributes:
+      label: 你是
+      options:
+        - 研学 / 亲子机构
+        - 旅行社 / 文旅公司
+        - 景区 / 博物馆 / 文旅主管单位
+        - 内容平台 / 媒体
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: want
+    attributes:
+      label: 想获取什么
+      options:
+        - 单景点「线索 + 典故」内容包
+        - 30 处景点完整内容包
+        - 按主题定制路线（如中轴线专题、亲子两日）
+        - 白标 / 定制化应用
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: use
+    attributes:
+      label: 使用场景与范围
+      description: 用在什么产品里、面向多少用户、是否需要独占、期望授权期限。
+      placeholder: 例：用于本机构暑期研学手册，印发 2000 册，非独占，一年期。
+    validations:
+      required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: 联系方式
+      description: 邮箱或微信，方便回你。
+    validations:
+      required: true

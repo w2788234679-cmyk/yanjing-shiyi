@@ -1,0 +1,56 @@
+name: 报告问题
+description: 内容有误、交通信息不对、页面出错——用这个模板
+title: "[问题] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢帮忙发现问题。**内容考据与交通信息**的错误对我们尤其重要——这类错误会直接误导出行的人。
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 问题类型
+      options:
+        - 内容有误（史实 / 文物 / 人物 / 时间）
+        - 交通信息有误（站序 / 换乘 / 公交线路 / 出站导向）
+        - 路线规划结果不合理（绕远、多换乘）
+        - 页面显示或交互出错
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 问题是什么
+      description: 说清现象。涉及景点的请写景点名；涉及交通的请写「从 X 到 Y」。
+      placeholder: 例：从「颐和园」到「北京植物园」，应用给出的方案里让步行到北宫门站，但两地实际相距约 6 公里。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expect
+    attributes:
+      label: 你期望的正确结果
+      description: 如果是内容或交通错误，**请附上可核实的来源**（官方页面、公开史料、地铁官网等）。
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: 运行环境
+      description: 浏览器与版本；如果是「双击 index.html」直接跑的，也请注明。
+      placeholder: 例：Chrome 130 / Windows 11；或 直接双击 index.html（file://）
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: 确认
+      options:
+        - label: 我知道交通信息会随运营调整变化，且在出行前会以地铁官方 App 与公交运营方信息为准
+          required: false
