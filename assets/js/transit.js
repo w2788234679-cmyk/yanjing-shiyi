@@ -133,7 +133,9 @@
     zhihuasi: { s: '东直门', l: '2号线', w: 6, g: '出 B 口沿东直门南小街向北约 500 米即到智化寺。' },
     fahaisi: { s: '模式口', l: '11号线', w: 12, g: '出站沿模式口大街东行走到底，法海寺在大街北侧模式口村内。' },
     dongwuyuan: { s: '动物园', l: '4号线', w: 0, g: '出站即到北京动物园南门。' },
-    zhiwuyuan: { s: '北宫门', l: '4号线', w: 12, g: '出 A 口换乘 331 路或 563 路（北京植物园南门方向），坐到植物园南门站下车即到；也可在巴沟站换西郊线。' },
+    /* 北京植物园不在此表：它离最近的 4 号线「北宫门」站实测约 6 公里，
+       没有任何地铁站是步行可达的，硬挂上去会算出一趟车都不用坐的假「地铁方案」。
+       它走下面的 BUS 表。 */
     olympicpark: { s: '奥林匹克公园', l: '8号线', w: 5, g: '出 A 口沿国家体育场北路东行即到鸟巢，过安立路往南即到水立方。' },
     shougang: { s: '新首钢', l: '11号线', w: 6, g: '出站向东沿石景山路即到首钢园西十筒仓、三高炉一带。' },
     dazhalan: { s: '前门', l: '2号线', w: 4, g: '出 B 口沿前门大街南行即到大栅栏路口；从北口进正街是招牌一段。' }
@@ -176,8 +178,17 @@
       tips: '872 路已改为「马甸桥南—长陵」，不再从德胜门发车，所以在昌平换车最省事；各陵相距 1–3 公里，可乘园内 314 路接驳车串联。',
       altGuide: '昌平线「十三陵景区站」是个「站名骗人」的站：离定陵还有约 4 公里，光换乘就要 40 分钟以上，赶时间不如走 345 快 + 872 路。'
     },
-    lugouqiao_alt: null,
-    zhiwuyuan_alt: null
+    zhiwuyuan: {
+      title: '北宫门 / 巴沟 → 北京植物园',
+      minutes: 40,
+      hub: '4 号线「北宫门」站或 10 号线「巴沟」站',
+      guide: '北京植物园不在任何一条地铁线的步行范围内，常走两条路：①地铁 4 号线「北宫门」站出 A 口，' +
+        '换乘 331 路或 563 路（北京植物园南门方向），到「北京植物园南门」站下车；' +
+        '②地铁 10 号线「巴沟」站换乘西郊线有轨电车，到「植物园」站下车，出站即到东南门。',
+      tips: '植物园与颐和园在地图上看着挨着，实际相距约 6 公里，别当成可以步行顺路的一站。' +
+        '西郊线沿香山一线、旺季排队较长，331 路班次更密。',
+      altGuide: '若把香山排在同一天，西郊线把「植物园」和「香山」串在同一条线上，按「植物园 → 香山」的顺序走即可，不用折回市区。'
+    }
   };
 
   /* ---------- 4. 计算参数 ---------- */
@@ -255,43 +266,70 @@
     return null;
   }
 
-  /* ---------- 6. 最短路径（Dijkstra，站点为节点） ---------- */
+  /* ---------- 6. 最短路径（Dijkstra） ----------
+     ⚠ 状态必须同时记住「到哪个站」和「到这一站时坐的是哪条线」。
+     因为从同一站继续往前，坐的是不是同一条线，决定要不要付换乘代价；
+     而「到达某站的代价」也因此取决于来路，不是一个标量能装下的。
+
+     只拿站点当状态（每个站一个 dist / 一个 pLine）时，后到达的线路会覆盖
+     前一条线的记录，使本该「同线直达」的后续路段被误判成一次换乘，于是
+     选出更差的路线。实测修复前的反例：
+
+       西直门 → 北宫门
+         错：4号线→国家图书馆→16号线→西苑→4号线（2 次换乘，代价 34）
+         对：4号线 西直门→北宫门 同线直达        （0 次换乘，代价 30）
+     而 4 号线本身就从西直门直通北宫门，绕行纯属算法自伤。
+
+     返回值：{ nodes: [站名...], legs: [{from, to, line}...] }
+     legs 把每一跳实际乘坐的线路带出来，下游不必再回头去 ADJ 里猜——
+     猜在多条线并行的区间上会标错线路号。 */
   function shortest(from, to) {
-    if (from === to) return [from];
-    var dist = {}, pLine = {}, prev = {}, seen = {}, queue = [];
-    Object.keys(ADJ).forEach(function (n) { dist[n] = Infinity; });
-    dist[from] = 0;
-    pLine[from] = '';
-    queue = Object.keys(ADJ);
-    while (queue.length) {
-      var u = null, bd = Infinity;
-      for (var k = 0; k < queue.length; k++) {
-        if (queue[k] in seen) continue;
-        if (dist[queue[k]] < bd) { bd = dist[queue[k]]; u = queue[k]; }
-      }
-      if (u === null || u === to) break;
-      seen[u] = 1;
-      var nb = ADJ[u] || [];
+    if (from === to) return { nodes: [from], legs: [] };
+
+    var SEP = '\u0000';                       /* 站名里不会出现，可安全做分隔符 */
+    var KEY = function (s, l) { return s + SEP + l; };
+
+    var dist = {}, prev = {}, pq = [];
+    dist[KEY(from, '')] = 0;                  /* 起点尚未上车，线路记为空串 */
+    pq.push({ d: 0, node: from, line: '' });
+
+    var endKey = null;
+    while (pq.length) {
+      /* 取当前累计代价最小的状态（图不大，线性扫描足够） */
+      var bi = 0;
+      for (var i = 1; i < pq.length; i++) { if (pq[i].d < pq[bi].d) bi = i; }
+      var cur = pq.splice(bi, 1)[0];
+      var ck = KEY(cur.node, cur.line);
+      if (dist[ck] === undefined || cur.d > dist[ck]) continue;   /* 该状态已被更优解取代 */
+      if (cur.node === to) { endKey = ck; break; }
+
+      var nb = ADJ[cur.node] || [];
       for (var m = 0; m < nb.length; m++) {
-        var v = nb[m].to;
-        /* 换了一条线就要多算一次换乘时间：这样「站数相同但换乘更少」的路线会胜出 */
-        var extra = (pLine[u] && pLine[u] !== nb[m].line) ? LINE_CHANGE_PENALTY : 0;
-        var alt = dist[u] + nb[m].w + extra;
-        if (alt < dist[v]) {
-          dist[v] = alt;
-          pLine[v] = nb[m].line;
-          prev[v] = { node: u, via: nb[m] };
+        var e = nb[m];
+        /* 换了一条线就要多算一次换乘代价，这样「站数相同但换乘更少」的路线会胜出 */
+        var extra = (cur.line && cur.line !== e.line) ? LINE_CHANGE_PENALTY : 0;
+        var nd = cur.d + e.w + extra;
+        var nk = KEY(e.to, e.line);
+        if (dist[nk] === undefined || nd < dist[nk]) {
+          dist[nk] = nd;
+          prev[nk] = { node: cur.node, line: cur.line };
+          pq.push({ d: nd, node: e.to, line: e.line });
         }
       }
     }
-    if (!(to in prev) && from !== to) return null;
-    var path = [to], cur = to;
-    while (cur !== from) {
-      if (!prev[cur]) return null;
-      cur = prev[cur].node;
-      path.unshift(cur);
+    if (!endKey) return null;
+
+    /* 回溯：同时取出站点序列与每一跳实际乘坐的线路 */
+    var nodes = [to], legs = [], k = endKey;
+    while (prev[k]) {
+      var p = prev[k];
+      var sep = k.lastIndexOf(SEP);
+      legs.unshift({ from: p.node, to: k.slice(0, sep), line: k.slice(sep + 1) });
+      nodes.unshift(p.node);
+      k = KEY(p.node, p.line);
     }
-    return path;
+    if (nodes[0] !== from) return null;
+    return { nodes: nodes, legs: legs };
   }
 
   /* ---------- 7. 方案生成 ---------- */
@@ -340,8 +378,9 @@
       items.push('两地直线约 ' + straight.toFixed(1) + ' 公里，而「' + to.name + '」不在地铁网内，' +
         '建议按下面这条主流线路走：' + b.title + '——' + b.guide);
       items.push('全程约 ' + fmtMin(b.minutes) + '。' + b.altGuide);
-      items.push('注意：行程里若紧挨着这一站，出发前要先回到市区枢纽（东直门枢纽站 / 德胜门西公交场站），' +
-        '别把远郊当成顺路的一站。' + b.tips);
+      items.push('注意：行程里若紧挨着这一站，出发前先回到 ' +
+        (b.hub || '市区枢纽（东直门枢纽站 / 德胜门西公交场站）') +
+        '，别把它当成顺路的一站。' + b.tips);
     } else {
       /* 反方向走：这一站是行程里的上一站，给的是「怎么回到市区」 */
       items.push('从「' + from.name + '」继续上路：这一段同样按「' + b.title + '」这条线走——' + b.guide);
@@ -358,11 +397,12 @@
   function metroPlan(from, to, straight) {
     var A = ANCHORS[from.id], B = ANCHORS[to.id];
     var aWalk = A.w, bWalk = B.w;
-    var path = shortest(A.s, B.s);
+    var route = shortest(A.s, B.s);
     var items = [];
-    if (!path) {
+    if (!route) {
       return busPlan(from, to, straight);
     }
+    var path = route.nodes;
 
     /* 起点：先走到上车站 */
     if (aWalk) {
@@ -371,19 +411,15 @@
       items.push('从「' + from.name + '」出来就是 ' + A.s + ' 站（' + A.l + '），直接进站');
     }
 
-    /* 车程：把同一条线路的连续区间合成一段 */
-    var rides = [], transfers = 0;
-    for (var i = 1; i < path.length; i++) {
-      var leg = null;
-      var pool = ADJ[path[i - 1]] || [];
-      for (var k = 0; k < pool.length; k++) {
-        if (pool[k].to === path[i]) { leg = pool[k]; break; }
-      }
-      if (!leg) continue;
+    /* 车程：把同一条线路的连续区间合成一段。
+       线路号直接取寻路结果带出来的 legs，不再回头从 ADJ 里挑第一条匹配的边——
+       两站之间若有多条线并行，那样挑会标错线路号。 */
+    var rides = [];
+    route.legs.forEach(function (leg) {
       var last = rides[rides.length - 1];
-      if (last && last.line === leg.line) { last.to = path[i]; last.hops++; }
-      else rides.push({ line: leg.line, from: path[i - 1], to: path[i], hops: 1 });
-    }
+      if (last && last.line === leg.line) { last.to = leg.to; last.hops++; }
+      else rides.push({ line: leg.line, from: leg.from, to: leg.to, hops: 1 });
+    });
 
     var rideMin = 0, wait = BOARD_WAIT;
     rides.forEach(function (seg, si) {
@@ -431,6 +467,9 @@
 
     if (!A || !B) return busPlan(fromSpot, toSpot, straight);
     if (A.s === B.s && road <= 3.5) return walkPlan(fromSpot, toSpot, straight);
+    /* 共用同一个上车站、但两地实际离得很远：说明这个站对其中一处只是名义锚点，
+       不能拿它当中转，否则会生成一趟车都没坐的「地铁方案」。退回公交/打车兜底。 */
+    if (A.s === B.s) return busPlan(fromSpot, toSpot, straight);
     if (road <= WALK_REAL_MAX) return walkPlan(fromSpot, toSpot, straight);
     return metroPlan(fromSpot, toSpot, straight);
   }

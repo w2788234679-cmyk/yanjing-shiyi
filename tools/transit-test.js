@@ -112,6 +112,88 @@ ok(/公里/.test(wp.items.join('')) && /分钟|小时/.test(wp.items.join('')), 
 const dp = T.plan(byId['yiheyuan'], byId['yuanmingyuan']);
 ok(!/换乘/.test(dp.items.join('')), '颐和园 → 圆明园 同线直达，不出现换乘描述');
 
+/* ---------- 3b. 换乘寻路的最优性 （防止退回「以站点为状态」的旧实现） ----------
+   背景：旧的 shortest() 只拿「站点」当状态，每个站一个 dist / 一个 pLine。
+   但「到达某站的代价」取决于你是从哪条线到的，所以后到的线路会覆盖 pLine，
+   把本该同线直达的后续路段误判成换乘。当时的最短反例：
+     西直门 → 北宫门  错解绕成 4号线→16号线→4号线（2 次换乘），
+     而 4 号线本身就直通，同线直达才是对的。
+   这里用正确的 (站点, 线路) 状态做参考实现，逐一比对全部景点方向。 */
+say('\n[3b] 地铁方案最优性');
+const RIDE_W = 3, PEN_W = 5;
+const ADJX = {};
+T.LINES.forEach(function (ln) {
+  const loop = !!ln.loop, list = loop ? ln.stops.slice(0, -1) : ln.stops;
+  list.forEach(function (name, i) {
+    const a = (ADJX[name] = ADJX[name] || []);
+    if (i > 0) a.push({ to: list[i - 1], line: ln.name });
+    if (i < list.length - 1) a.push({ to: list[i + 1], line: ln.name });
+  });
+  if (loop && list.length > 2) {
+    const lastN = list[list.length - 1];
+    (ADJX[lastN] = ADJX[lastN] || []).push({ to: list[0], line: ln.name });
+  }
+});
+function refOptimum(from, to) {
+  if (from === to) return 0;
+  const SEP = '\u0000', KEY = (s, l) => s + SEP + l;
+  const dist = {}, pq = [[0, from, '']];
+  dist[KEY(from, '')] = 0;
+  while (pq.length) {
+    pq.sort((a, b) => a[0] - b[0]);
+    const [d, u, lu] = pq.shift();
+    const ck = KEY(u, lu);
+    if (d > (dist[ck] === undefined ? Infinity : dist[ck])) continue;
+    if (u === to) return d;
+    for (const e of (ADJX[u] || [])) {
+      const nd = d + RIDE_W + ((lu && lu !== e.line) ? PEN_W : 0);
+      const nk = KEY(e.to, e.line);
+      if (dist[nk] === undefined || nd < dist[nk]) { dist[nk] = nd; pq.push([nd, e.to, e.line]); }
+    }
+  }
+  return Infinity;
+}
+let optChecked = 0, optWorse = 0, zeroRide = 0;
+const optBad = [];
+for (const a of coords) {
+  for (const b of coords) {
+    if (a.id === b.id) continue;
+    const A = T.ANCHORS[a.id], B = T.ANCHORS[b.id];
+    if (!A || !B) continue;
+    const p = T.plan(a, b);
+    if (!p || p.mode !== 'metro') continue;
+    if (!p.stations || p.stations.length < 2) { zeroRide++; continue; }
+    optChecked++;
+    const rides = p.stations.length - 1;
+    const lines = p.lines || [];
+    let transfers = 0;
+    for (let i = 1; i < lines.length; i++) if (lines[i] !== lines[i - 1]) transfers++;
+    if (rides * RIDE_W + transfers * PEN_W > refOptimum(A.s, B.s)) {
+      optWorse++;
+      if (optBad.length < 5) optBad.push(a.id + '→' + b.id);
+    }
+  }
+}
+ok(optWorse === 0, '全部 ' + optChecked + ' 个地铁方向均达成最优换乘' +
+  (optWorse ? '（劣化 ' + optWorse + ' 个：' + optBad.join('、') + '）' : ''));
+ok(zeroRide === 0, '不存在「一趟车都没坐」的地铁方案（实际 ' + zeroRide + ' 个）');
+
+/* 定点：这一条曾因「站点态」而多绕出一次换乘 */
+const fixA = T.plan(byId['tiantan'], byId['yiheyuan']);
+ok(fixA.mode === 'metro' && (fixA.lines || []).length - 1 <= 3,
+  '天坛 → 颐和园 换乘 ≤ 3 次（修复前为 4 次）');
+
+/* ---------- 3c. 无地铁可达的景点必须走公交 ---------- */
+say('\n[3c] 无地铁锚点的景点');
+ok(!T.ANCHORS['zhiwuyuan'], '北京植物园 不在地铁锚点表内（它离最近的地铁站实测约 6 公里）');
+const zw = T.plan(byId['yiheyuan'], byId['zhiwuyuan']);
+ok(zw.mode === 'bus', '颐和园 → 北京植物园 走公交方案（实际 ' + zw.badge + '）');
+ok(/西郊线|331|563/.test(zw.items.join('')), '公交方案含真实接驳方式（西郊线 / 331 路 / 563 路）');
+const zw2 = T.plan(byId['zhiwuyuan'], byId['yiheyuan']);
+ok(zw2.mode === 'bus', '北京植物园 → 颐和园 也走公交方案');
+ok(!/步行\s*1[0-9]\s*分钟到/.test(zw2.items.join('')),
+  '不再出现「步行 12 分钟到北宫门站」这类错误引导');
+
 /* ---------- 4. 全景区两两覆盖 ---------- */
 say('\n[4] 全景区两两覆盖');
 let none = 0, bad = 0;
